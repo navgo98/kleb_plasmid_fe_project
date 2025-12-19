@@ -1,0 +1,951 @@
+---
+title: "Non-linear Mixed Model"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+date: "2025-01-24"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r package, include=TRUE, result = "hide", message = FALSE, warning=FALSE}
+library(MASS)
+library(nlme)
+library(segmented)
+library(growthcurver)
+library(tibble)
+library(dplyr)
+library(ggplot2)
+library(minpack.lm)
+library(xlsx)
+library(ggpubr)
+library(beeswarm)
+library(nlstools)
+library(gridExtra)
+```
+
+## DATA 
+Please kindly adjust the file directory. I chose two strains to test out: W in M9 and WVE in Fe.
+Only the code for the first result is included, those for subsequent process of similar nature are hidden.
+```{r data, echo=FALSE}
+kp_data_hybrid <- read.xlsx(file = "C:/Users/ngodi/OneDrive/Documents/Kleb_project/CultureData_11523_Van.xlsx",1)
+
+#Wild + M9
+kp_hybrid_w_m9_1 <- as.data.frame(t(kp_data_hybrid[1,3:53]))
+kp_hybrid_w_m9_2 <- as.data.frame(t(kp_data_hybrid[2,3:53]))
+kp_hybrid_w_m9_3 <- as.data.frame(t(kp_data_hybrid[3,3:53]))
+kp_hybrid_w_m9_4 <- as.data.frame(t(kp_data_hybrid[4,3:53]))
+kp_hybrid_w_m9_5 <- as.data.frame(t(kp_data_hybrid[5,3:53]))
+kp_hybrid_w_m9_6 <- as.data.frame(t(kp_data_hybrid[6,3:53]))
+
+kp_hybrid_w_m9_1$time <- seq(0,15,0.3)
+kp_hybrid_w_m9_2$time <- seq(0,15,0.3)
+kp_hybrid_w_m9_3$time <- seq(0,15,0.3)
+kp_hybrid_w_m9_4$time <- seq(0,15,0.3)
+kp_hybrid_w_m9_5$time <- seq(0,15,0.3)
+kp_hybrid_w_m9_6$time <- seq(0,15,0.3)
+
+colnames(kp_hybrid_w_m9_1) <- c("OD", "time")
+colnames(kp_hybrid_w_m9_2) <- c("OD", "time")
+colnames(kp_hybrid_w_m9_3) <- c("OD", "time")
+colnames(kp_hybrid_w_m9_4) <- c("OD", "time")
+colnames(kp_hybrid_w_m9_5) <- c("OD", "time")
+colnames(kp_hybrid_w_m9_6) <- c("OD", "time")
+
+
+kp_hybrid_w_m9_1$Replicate <- 1
+kp_hybrid_w_m9_2$Replicate <- 2
+kp_hybrid_w_m9_3$Replicate <- 3
+kp_hybrid_w_m9_4$Replicate <- 4
+kp_hybrid_w_m9_5$Replicate <- 5
+kp_hybrid_w_m9_6$Replicate <- 6
+
+kp_hybrid_w_m9_complete <- rbind(kp_hybrid_w_m9_1,
+                                 kp_hybrid_w_m9_2,
+                                 kp_hybrid_w_m9_3,
+                                 kp_hybrid_w_m9_4,
+                                 kp_hybrid_w_m9_5,
+                                 kp_hybrid_w_m9_6)
+
+synthetic_data <- kp_hybrid_w_m9_complete
+
+#W + ESBL + M9
+
+kp_hybrid_we_m9_1 <- as.data.frame(t(kp_data_hybrid[7,3:53]))
+kp_hybrid_we_m9_2 <- as.data.frame(t(kp_data_hybrid[8,3:53]))
+kp_hybrid_we_m9_3 <- as.data.frame(t(kp_data_hybrid[9,3:53]))
+kp_hybrid_we_m9_4 <- as.data.frame(t(kp_data_hybrid[10,3:53]))
+kp_hybrid_we_m9_5 <- as.data.frame(t(kp_data_hybrid[11,3:53]))
+kp_hybrid_we_m9_6 <- as.data.frame(t(kp_data_hybrid[12,3:53]))
+
+kp_hybrid_we_m9_1$time <- seq(0,15,0.3)
+kp_hybrid_we_m9_2$time <- seq(0,15,0.3)
+kp_hybrid_we_m9_3$time <- seq(0,15,0.3)
+kp_hybrid_we_m9_4$time <- seq(0,15,0.3)
+kp_hybrid_we_m9_5$time <- seq(0,15,0.3)
+kp_hybrid_we_m9_6$time <- seq(0,15,0.3)
+
+colnames(kp_hybrid_we_m9_1) <- c("OD", "time")
+colnames(kp_hybrid_we_m9_2) <- c("OD", "time")
+colnames(kp_hybrid_we_m9_3) <- c("OD", "time")
+colnames(kp_hybrid_we_m9_4) <- c("OD", "time")
+colnames(kp_hybrid_we_m9_5) <- c("OD", "time")
+colnames(kp_hybrid_we_m9_6) <- c("OD", "time")
+
+kp_hybrid_we_m9_1$Replicate <- 1
+kp_hybrid_we_m9_2$Replicate <- 2
+kp_hybrid_we_m9_3$Replicate <- 3
+kp_hybrid_we_m9_4$Replicate <- 4
+kp_hybrid_we_m9_5$Replicate <- 5
+kp_hybrid_we_m9_6$Replicate <- 6
+
+kp_hybrid_we_m9_complete <- rbind(kp_hybrid_we_m9_1,
+                                 kp_hybrid_we_m9_2,
+                                 kp_hybrid_we_m9_3,
+                                 kp_hybrid_we_m9_4,
+                                 kp_hybrid_we_m9_5,
+                                 kp_hybrid_we_m9_6)
+
+synthetic_data_2 <- kp_hybrid_we_m9_complete
+
+#WH + M9
+
+kp_hybrid_wh_m9_1 <- as.data.frame(t(kp_data_hybrid[13,3:53]))
+kp_hybrid_wh_m9_2 <- as.data.frame(t(kp_data_hybrid[14,3:53]))
+kp_hybrid_wh_m9_3 <- as.data.frame(t(kp_data_hybrid[15,3:53]))
+kp_hybrid_wh_m9_4 <- as.data.frame(t(kp_data_hybrid[16,3:53]))
+kp_hybrid_wh_m9_5 <- as.data.frame(t(kp_data_hybrid[17,3:53]))
+kp_hybrid_wh_m9_6 <- as.data.frame(t(kp_data_hybrid[18,3:53]))
+
+kp_hybrid_wh_m9_1$time <- seq(0,15,0.3)
+kp_hybrid_wh_m9_2$time <- seq(0,15,0.3)
+kp_hybrid_wh_m9_3$time <- seq(0,15,0.3)
+kp_hybrid_wh_m9_4$time <- seq(0,15,0.3)
+kp_hybrid_wh_m9_5$time <- seq(0,15,0.3)
+kp_hybrid_wh_m9_6$time <- seq(0,15,0.3)
+
+colnames(kp_hybrid_wh_m9_1) <- c("OD", "time")
+colnames(kp_hybrid_wh_m9_2) <- c("OD", "time")
+colnames(kp_hybrid_wh_m9_3) <- c("OD", "time")
+colnames(kp_hybrid_wh_m9_4) <- c("OD", "time")
+colnames(kp_hybrid_wh_m9_5) <- c("OD", "time")
+colnames(kp_hybrid_wh_m9_6) <- c("OD", "time")
+
+kp_hybrid_wh_m9_1$Replicate <- 1
+kp_hybrid_wh_m9_2$Replicate <- 2
+kp_hybrid_wh_m9_3$Replicate <- 3
+kp_hybrid_wh_m9_4$Replicate <- 4
+kp_hybrid_wh_m9_5$Replicate <- 5
+kp_hybrid_wh_m9_6$Replicate <- 6
+
+kp_hybrid_wh_m9_complete <- rbind(kp_hybrid_wh_m9_1,
+                                 kp_hybrid_wh_m9_2,
+                                 kp_hybrid_wh_m9_3,
+                                 kp_hybrid_wh_m9_4,
+                                 kp_hybrid_wh_m9_5,
+                                 kp_hybrid_wh_m9_6)
+
+synthetic_data_3 <- kp_hybrid_wh_m9_complete
+
+#WV + M9
+
+kp_hybrid_wv_m9_1 <- as.data.frame(t(kp_data_hybrid[19,3:53]))
+kp_hybrid_wv_m9_2 <- as.data.frame(t(kp_data_hybrid[20,3:53]))
+kp_hybrid_wv_m9_3 <- as.data.frame(t(kp_data_hybrid[21,3:53]))
+kp_hybrid_wv_m9_4 <- as.data.frame(t(kp_data_hybrid[22,3:53]))
+kp_hybrid_wv_m9_5 <- as.data.frame(t(kp_data_hybrid[23,3:53]))
+kp_hybrid_wv_m9_6 <- as.data.frame(t(kp_data_hybrid[24,3:53]))
+
+kp_hybrid_wv_m9_1$time <- seq(0,15,0.3)
+kp_hybrid_wv_m9_2$time <- seq(0,15,0.3)
+kp_hybrid_wv_m9_3$time <- seq(0,15,0.3)
+kp_hybrid_wv_m9_4$time <- seq(0,15,0.3)
+kp_hybrid_wv_m9_5$time <- seq(0,15,0.3)
+kp_hybrid_wv_m9_6$time <- seq(0,15,0.3)
+
+colnames(kp_hybrid_wv_m9_1) <- c("OD", "time")
+colnames(kp_hybrid_wv_m9_2) <- c("OD", "time")
+colnames(kp_hybrid_wv_m9_3) <- c("OD", "time")
+colnames(kp_hybrid_wv_m9_4) <- c("OD", "time")
+colnames(kp_hybrid_wv_m9_5) <- c("OD", "time")
+colnames(kp_hybrid_wv_m9_6) <- c("OD", "time")
+
+kp_hybrid_wv_m9_1$Replicate <- 1
+kp_hybrid_wv_m9_2$Replicate <- 2
+kp_hybrid_wv_m9_3$Replicate <- 3
+kp_hybrid_wv_m9_4$Replicate <- 4
+kp_hybrid_wv_m9_5$Replicate <- 5
+kp_hybrid_wv_m9_6$Replicate <- 6
+
+kp_hybrid_wv_m9_complete <- rbind(kp_hybrid_wv_m9_1,
+                                 kp_hybrid_wv_m9_2,
+                                 kp_hybrid_wv_m9_3,
+                                 kp_hybrid_wv_m9_4,
+                                 kp_hybrid_wv_m9_5,
+                                 kp_hybrid_wv_m9_6)
+
+synthetic_data_4 <- kp_hybrid_wv_m9_complete
+
+#WVE + M9
+
+kp_hybrid_wve_m9_1 <- as.data.frame(t(kp_data_hybrid[25,3:53]))
+kp_hybrid_wve_m9_2 <- as.data.frame(t(kp_data_hybrid[26,3:53]))
+kp_hybrid_wve_m9_3 <- as.data.frame(t(kp_data_hybrid[27,3:53]))
+kp_hybrid_wve_m9_4 <- as.data.frame(t(kp_data_hybrid[28,3:53]))
+kp_hybrid_wve_m9_5 <- as.data.frame(t(kp_data_hybrid[29,3:53]))
+kp_hybrid_wve_m9_6 <- as.data.frame(t(kp_data_hybrid[30,3:53]))
+
+kp_hybrid_wve_m9_1$time <- seq(0,15,0.3)
+kp_hybrid_wve_m9_2$time <- seq(0,15,0.3)
+kp_hybrid_wve_m9_3$time <- seq(0,15,0.3)
+kp_hybrid_wve_m9_4$time <- seq(0,15,0.3)
+kp_hybrid_wve_m9_5$time <- seq(0,15,0.3)
+kp_hybrid_wve_m9_6$time <- seq(0,15,0.3)
+
+colnames(kp_hybrid_wve_m9_1) <- c("OD", "time")
+colnames(kp_hybrid_wve_m9_2) <- c("OD", "time")
+colnames(kp_hybrid_wve_m9_3) <- c("OD", "time")
+colnames(kp_hybrid_wve_m9_4) <- c("OD", "time")
+colnames(kp_hybrid_wve_m9_5) <- c("OD", "time")
+colnames(kp_hybrid_wve_m9_6) <- c("OD", "time")
+
+kp_hybrid_wve_m9_1$Replicate <- 1
+kp_hybrid_wve_m9_2$Replicate <- 2
+kp_hybrid_wve_m9_3$Replicate <- 3
+kp_hybrid_wve_m9_4$Replicate <- 4
+kp_hybrid_wve_m9_5$Replicate <- 5
+kp_hybrid_wve_m9_6$Replicate <- 6
+
+kp_hybrid_wve_m9_complete <- rbind(kp_hybrid_wve_m9_1,
+                                 kp_hybrid_wve_m9_2,
+                                 kp_hybrid_wve_m9_3,
+                                 kp_hybrid_wve_m9_4,
+                                 kp_hybrid_wve_m9_5,
+                                 kp_hybrid_wve_m9_6)
+
+synthetic_data_5 <- kp_hybrid_wve_m9_complete
+
+###################################################################################
+
+#W + Fe
+
+kp_hybrid_w_fe_1 <- as.data.frame(t(kp_data_hybrid[31,3:53]))
+kp_hybrid_w_fe_2 <- as.data.frame(t(kp_data_hybrid[32,3:53]))
+kp_hybrid_w_fe_3 <- as.data.frame(t(kp_data_hybrid[33,3:53]))
+kp_hybrid_w_fe_4 <- as.data.frame(t(kp_data_hybrid[34,3:53]))
+kp_hybrid_w_fe_5 <- as.data.frame(t(kp_data_hybrid[35,3:53]))
+kp_hybrid_w_fe_6 <- as.data.frame(t(kp_data_hybrid[36,3:53]))
+
+kp_hybrid_w_fe_1$time <- seq(0,15,0.3)
+kp_hybrid_w_fe_2$time <- seq(0,15,0.3)
+kp_hybrid_w_fe_3$time <- seq(0,15,0.3)
+kp_hybrid_w_fe_4$time <- seq(0,15,0.3)
+kp_hybrid_w_fe_5$time <- seq(0,15,0.3)
+kp_hybrid_w_fe_6$time <- seq(0,15,0.3)
+
+colnames(kp_hybrid_w_fe_1) <- c("OD", "time")
+colnames(kp_hybrid_w_fe_2) <- c("OD", "time")
+colnames(kp_hybrid_w_fe_3) <- c("OD", "time")
+colnames(kp_hybrid_w_fe_4) <- c("OD", "time")
+colnames(kp_hybrid_w_fe_5) <- c("OD", "time")
+colnames(kp_hybrid_w_fe_6) <- c("OD", "time")
+
+kp_hybrid_w_fe_1$Replicate <- 1
+kp_hybrid_w_fe_2$Replicate <- 2
+kp_hybrid_w_fe_3$Replicate <- 3
+kp_hybrid_w_fe_4$Replicate <- 4
+kp_hybrid_w_fe_5$Replicate <- 5
+kp_hybrid_w_fe_6$Replicate <- 6
+
+kp_hybrid_w_fe_complete <- rbind(kp_hybrid_w_fe_1,
+                                 kp_hybrid_w_fe_2,
+                                 kp_hybrid_w_fe_3,
+                                 kp_hybrid_w_fe_4,
+                                 kp_hybrid_w_fe_5,
+                                 kp_hybrid_w_fe_6)
+
+synthetic_data_6 <- kp_hybrid_w_fe_complete
+
+# WE + FE
+
+kp_hybrid_we_fe_1 <- as.data.frame(t(kp_data_hybrid[37,3:53]))
+kp_hybrid_we_fe_2 <- as.data.frame(t(kp_data_hybrid[38,3:53]))
+kp_hybrid_we_fe_3 <- as.data.frame(t(kp_data_hybrid[39,3:53]))
+kp_hybrid_we_fe_4 <- as.data.frame(t(kp_data_hybrid[40,3:53]))
+kp_hybrid_we_fe_5 <- as.data.frame(t(kp_data_hybrid[41,3:53]))
+kp_hybrid_we_fe_6 <- as.data.frame(t(kp_data_hybrid[42,3:53]))
+
+kp_hybrid_we_fe_1$time <- seq(0,15,0.3)
+kp_hybrid_we_fe_2$time <- seq(0,15,0.3)
+kp_hybrid_we_fe_3$time <- seq(0,15,0.3)
+kp_hybrid_we_fe_4$time <- seq(0,15,0.3)
+kp_hybrid_we_fe_5$time <- seq(0,15,0.3)
+kp_hybrid_we_fe_6$time <- seq(0,15,0.3)
+
+colnames(kp_hybrid_we_fe_1) <- c("OD", "time")
+colnames(kp_hybrid_we_fe_2) <- c("OD", "time")
+colnames(kp_hybrid_we_fe_3) <- c("OD", "time")
+colnames(kp_hybrid_we_fe_4) <- c("OD", "time")
+colnames(kp_hybrid_we_fe_5) <- c("OD", "time")
+colnames(kp_hybrid_we_fe_6) <- c("OD", "time")
+
+kp_hybrid_we_fe_1$Replicate <- 1
+kp_hybrid_we_fe_2$Replicate <- 2
+kp_hybrid_we_fe_3$Replicate <- 3
+kp_hybrid_we_fe_4$Replicate <- 4
+kp_hybrid_we_fe_5$Replicate <- 5
+kp_hybrid_we_fe_6$Replicate <- 6
+
+kp_hybrid_we_fe_complete <- rbind(kp_hybrid_we_fe_1,
+                                 kp_hybrid_we_fe_2,
+                                 kp_hybrid_we_fe_3,
+                                 kp_hybrid_we_fe_4,
+                                 kp_hybrid_we_fe_5,
+                                 kp_hybrid_we_fe_6)
+
+synthetic_data_7 <- kp_hybrid_we_fe_complete
+
+#WH + FE
+
+kp_hybrid_wh_fe_1 <- as.data.frame(t(kp_data_hybrid[43,3:53]))
+kp_hybrid_wh_fe_2 <- as.data.frame(t(kp_data_hybrid[44,3:53]))
+kp_hybrid_wh_fe_3 <- as.data.frame(t(kp_data_hybrid[45,3:53]))
+kp_hybrid_wh_fe_4 <- as.data.frame(t(kp_data_hybrid[46,3:53]))
+kp_hybrid_wh_fe_5 <- as.data.frame(t(kp_data_hybrid[47,3:53]))
+kp_hybrid_wh_fe_6 <- as.data.frame(t(kp_data_hybrid[48,3:53]))
+
+kp_hybrid_wh_fe_1$time <- seq(0,15,0.3)
+kp_hybrid_wh_fe_2$time <- seq(0,15,0.3)
+kp_hybrid_wh_fe_3$time <- seq(0,15,0.3)
+kp_hybrid_wh_fe_4$time <- seq(0,15,0.3)
+kp_hybrid_wh_fe_5$time <- seq(0,15,0.3)
+kp_hybrid_wh_fe_6$time <- seq(0,15,0.3)
+
+colnames(kp_hybrid_wh_fe_1) <- c("OD", "time")
+colnames(kp_hybrid_wh_fe_2) <- c("OD", "time")
+colnames(kp_hybrid_wh_fe_3) <- c("OD", "time")
+colnames(kp_hybrid_wh_fe_4) <- c("OD", "time")
+colnames(kp_hybrid_wh_fe_5) <- c("OD", "time")
+colnames(kp_hybrid_wh_fe_6) <- c("OD", "time")
+
+kp_hybrid_wh_fe_1$Replicate <- 1
+kp_hybrid_wh_fe_2$Replicate <- 2
+kp_hybrid_wh_fe_3$Replicate <- 3
+kp_hybrid_wh_fe_4$Replicate <- 4
+kp_hybrid_wh_fe_5$Replicate <- 5
+kp_hybrid_wh_fe_6$Replicate <- 6
+
+kp_hybrid_wh_fe_complete <- rbind(kp_hybrid_wh_fe_1,
+                                 kp_hybrid_wh_fe_2,
+                                 kp_hybrid_wh_fe_3,
+                                 kp_hybrid_wh_fe_4,
+                                 kp_hybrid_wh_fe_5,
+                                 kp_hybrid_wh_fe_6)
+
+synthetic_data_8 <- kp_hybrid_wh_fe_complete
+
+#WV + FE
+
+kp_hybrid_wv_fe_1 <- as.data.frame(t(kp_data_hybrid[49,3:53]))
+kp_hybrid_wv_fe_2 <- as.data.frame(t(kp_data_hybrid[50,3:53]))
+kp_hybrid_wv_fe_3 <- as.data.frame(t(kp_data_hybrid[51,3:53]))
+kp_hybrid_wv_fe_4 <- as.data.frame(t(kp_data_hybrid[52,3:53]))
+kp_hybrid_wv_fe_5 <- as.data.frame(t(kp_data_hybrid[53,3:53]))
+kp_hybrid_wv_fe_6 <- as.data.frame(t(kp_data_hybrid[54,3:53]))
+
+kp_hybrid_wv_fe_1$time <- seq(0,15,0.3)
+kp_hybrid_wv_fe_2$time <- seq(0,15,0.3)
+kp_hybrid_wv_fe_3$time <- seq(0,15,0.3)
+kp_hybrid_wv_fe_4$time <- seq(0,15,0.3)
+kp_hybrid_wv_fe_5$time <- seq(0,15,0.3)
+kp_hybrid_wv_fe_6$time <- seq(0,15,0.3)
+
+colnames(kp_hybrid_wv_fe_1) <- c("OD", "time")
+colnames(kp_hybrid_wv_fe_2) <- c("OD", "time")
+colnames(kp_hybrid_wv_fe_3) <- c("OD", "time")
+colnames(kp_hybrid_wv_fe_4) <- c("OD", "time")
+colnames(kp_hybrid_wv_fe_5) <- c("OD", "time")
+colnames(kp_hybrid_wv_fe_6) <- c("OD", "time")
+
+kp_hybrid_wv_fe_1$Replicate <- 1
+kp_hybrid_wv_fe_2$Replicate <- 2
+kp_hybrid_wv_fe_3$Replicate <- 3
+kp_hybrid_wv_fe_4$Replicate <- 4
+kp_hybrid_wv_fe_5$Replicate <- 5
+kp_hybrid_wv_fe_6$Replicate <- 6
+
+kp_hybrid_wv_fe_complete <- rbind(kp_hybrid_wv_fe_1,
+                                 kp_hybrid_wv_fe_2,
+                                 kp_hybrid_wv_fe_3,
+                                 kp_hybrid_wv_fe_4,
+                                 kp_hybrid_wv_fe_5,
+                                 kp_hybrid_wv_fe_6)
+
+synthetic_data_9 <- kp_hybrid_wv_fe_complete
+
+
+
+#Wild + Virulence + ESBL + FE
+kp_hybrid_wve_fe_1 <- as.data.frame(t(kp_data_hybrid[55,3:53]))
+kp_hybrid_wve_fe_2 <- as.data.frame(t(kp_data_hybrid[56,3:53]))
+kp_hybrid_wve_fe_3 <- as.data.frame(t(kp_data_hybrid[57,3:53]))
+kp_hybrid_wve_fe_4 <- as.data.frame(t(kp_data_hybrid[58,3:53]))
+kp_hybrid_wve_fe_5 <- as.data.frame(t(kp_data_hybrid[59,3:53]))
+kp_hybrid_wve_fe_6 <- as.data.frame(t(kp_data_hybrid[60,3:53]))
+
+kp_hybrid_wve_fe_1$time <- seq(0,15,0.3)
+kp_hybrid_wve_fe_2$time <- seq(0,15,0.3)
+kp_hybrid_wve_fe_3$time <- seq(0,15,0.3)
+kp_hybrid_wve_fe_4$time <- seq(0,15,0.3)
+kp_hybrid_wve_fe_5$time <- seq(0,15,0.3)
+kp_hybrid_wve_fe_6$time <- seq(0,15,0.3)
+
+colnames(kp_hybrid_wve_fe_1) <- c("OD", "time")
+colnames(kp_hybrid_wve_fe_2) <- c("OD", "time")
+colnames(kp_hybrid_wve_fe_3) <- c("OD", "time")
+colnames(kp_hybrid_wve_fe_4) <- c("OD", "time")
+colnames(kp_hybrid_wve_fe_5) <- c("OD", "time")
+colnames(kp_hybrid_wve_fe_6) <- c("OD", "time")
+
+kp_hybrid_wve_fe_1$Replicate <- 1
+kp_hybrid_wve_fe_2$Replicate <- 2
+kp_hybrid_wve_fe_3$Replicate <- 3
+kp_hybrid_wve_fe_4$Replicate <- 4
+kp_hybrid_wve_fe_5$Replicate <- 5
+kp_hybrid_wve_fe_6$Replicate <- 6
+
+kp_hybrid_wve_fe_complete <- rbind(kp_hybrid_wve_fe_1,
+                                 kp_hybrid_wve_fe_2,
+                                 kp_hybrid_wve_fe_3,
+                                 kp_hybrid_wve_fe_4,
+                                 kp_hybrid_wve_fe_5,
+                                 kp_hybrid_wve_fe_6)
+
+synthetic_data_10 <- kp_hybrid_wve_fe_complete
+```
+
+## DEFINE THE MODEL
+
+```{r model, echo=TRUE}
+# Define the piecewise growth function
+piecewise_growth <- function(time, c1, b, t1, t2) {
+  ifelse(time <= t1, c1,
+         ifelse(time > t1 & time < t2, c1 * exp(b * (time - t1)),
+                c1 * exp(b * (t2 - t1))))
+}
+
+#The nlme function does not support passing custom functions directly
+#Hence, need to define a self-starting function for the piecewise model
+SSPiecewise <- selfStart(
+  model = piecewise_growth,
+  initial = function(mCall, data, LHS) {
+    # Initial parameter guesses
+    list(c1 = 0.05, b = 0.5, t1 = 4, t2 = 8)
+  }
+)
+
+# Define the fitting function
+fit_piecewise_growth <- function(data, time_var, od_var, replicate_var = NULL, 
+                                 start_params = c(c1 = 0.075, b = 0.5, t1 = 4, t2 = 8)) {
+
+  
+  # Fit the nonlinear mixed-effects model
+  piecewise_model <- nlme(
+    OD ~ ifelse(time <= t1, c1,
+                ifelse(time > t1 & time < t2, c1 * exp(b * (time - t1)),
+                       c1 * exp(b * (t2 - t1)))),  # Piecewise formula
+    data = data,
+    fixed = c1 + b + t1 + t2 ~ 1,  # Fixed effects
+    random = list(Replicate = pdDiag(b + t1 ~ 1)),  # Random effect for b and t1 by replicates
+    #random = b ~ 1 | Replicate,  # Random effects for b by replicates
+    start = start_params
+  )
+  
+  # Return the fitted model
+  return(piecewise_model)
+}
+
+
+```
+
+## Wild + M9
+```{r fit_w_m9}
+#Fit the model
+fitted_model <- fit_piecewise_growth(
+  data = synthetic_data,
+  time_var = "time",
+  od_var = "OD",
+  replicate_var = "Replicate"
+)
+
+summary(fitted_model)
+coef(summary(fitted_model))
+
+#Prediction
+synthetic_data$fitted_by_rep <- predict(fitted_model) # Predictions by replicate
+synthetic_data$fitted <- predict(fitted_model, level = 0)  # Fixed effect predictions
+synthetic_data$Replicate <- as.factor(synthetic_data$Replicate)
+
+# Plot observed and fitted data
+replicate_colors <- c("red", "blue", "green", "purple", "orange","brown")
+
+ggplot(synthetic_data, aes(x = time, y = OD, color = Replicate)) +
+  geom_point(alpha = 0.6) +  # Observed data points
+  geom_line(aes(y = fitted_by_rep, group = Replicate), linewidth = 1) +  # Fitted curves for replicates
+  geom_line(aes(y = fitted, linetype = "Average Growth Curve"), color = "black", linewidth = 1.2) +  # Fixed effects curve
+  labs(
+    title = "Observed Data and Fitted Piecewise Growth Curves W+M9",
+    x = "time (hours)",
+    y = "Optical Density (OD)",
+    linetype = "Average Growth Curve"
+  ) +
+  theme_minimal() +
+  scale_color_manual(
+    name = "Replicate",
+    values = replicate_colors
+  ) +
+  scale_linetype_manual(
+    name = "Average Growth Curve",
+    values = c("Average Growth Curve" = "dashed")  # Assign dashed line to average curve
+  ) +
+  guides(
+    color = guide_legend(order = 1),  # Order replicates first
+    linetype = guide_legend(order = 2)  # Order the average curve after replicates
+  )
+
+```
+## WE + M9
+
+```{r fit_we_m9, echo=FALSE}
+#Fit the model
+fitted_model_2 <- fit_piecewise_growth(
+  data = synthetic_data_2,
+  time_var = "time",
+  od_var = "OD",
+  replicate_var = "Replicate"
+)
+
+summary(fitted_model_2)
+coef(summary(fitted_model_2))
+
+#Prediction
+synthetic_data_2$fitted_by_rep <- predict(fitted_model_2) # Predictions by replicate
+synthetic_data_2$fitted <- predict(fitted_model_2, level = 0)  # Fixed effect predictions
+synthetic_data_2$Replicate <- as.factor(synthetic_data_2$Replicate)
+
+# Plot observed and fitted data
+replicate_colors <- c("red", "blue", "green", "purple", "orange","brown")
+
+ggplot(synthetic_data_2, aes(x = time, y = OD, color = Replicate)) +
+  geom_point(alpha = 0.6) +  # Observed data points
+  geom_line(aes(y = fitted_by_rep, group = Replicate), linewidth = 1) +  # Fitted curves for replicates
+  geom_line(aes(y = fitted, linetype = "Average Growth Curve"), color = "black", linewidth = 1.2) +  # Fixed effects curve
+  labs(
+    title = "Observed Data and Fitted Piecewise Growth Curves WVE + Fe",
+    x = "time (hours)",
+    y = "Optical Density (OD)",
+    linetype = "Average Growth Curve"
+  ) +
+  theme_minimal() +
+  scale_color_manual(
+    name = "Replicate",
+    values = replicate_colors
+  ) +
+  scale_linetype_manual(
+    name = "Average Growth Curve",
+    values = c("Average Growth Curve" = "dashed")  # Assign dashed line to average curve
+  ) +
+  guides(
+    color = guide_legend(order = 1),  # Order replicates first
+    linetype = guide_legend(order = 2)  # Order the average curve after replicates
+  )
+
+```
+
+## WH + M9
+
+```{r fit_wve_fe, echo=FALSE}
+#Fit the model
+fitted_model_3 <- fit_piecewise_growth(
+  data = synthetic_data_3,
+  time_var = "time",
+  od_var = "OD",
+  replicate_var = "Replicate"
+)
+
+summary(fitted_model_3)
+coef(summary(fitted_model_3))
+
+#Prediction
+synthetic_data_3$fitted_by_rep <- predict(fitted_model_3) # Predictions by replicate
+synthetic_data_3$fitted <- predict(fitted_model_3, level = 0)  # Fixed effect predictions
+synthetic_data_3$Replicate <- as.factor(synthetic_data_3$Replicate)
+
+# Plot observed and fitted data
+replicate_colors <- c("red", "blue", "green", "purple", "orange","brown")
+
+ggplot(synthetic_data_3, aes(x = time, y = OD, color = Replicate)) +
+  geom_point(alpha = 0.6) +  # Observed data points
+  geom_line(aes(y = fitted_by_rep, group = Replicate), linewidth = 1) +  # Fitted curves for replicates
+  geom_line(aes(y = fitted, linetype = "Average Growth Curve"), color = "black", linewidth = 1.2) +  # Fixed effects curve
+  labs(
+    title = "Observed Data and Fitted Piecewise Growth Curves WH + M9",
+    x = "time (hours)",
+    y = "Optical Density (OD)",
+    linetype = "Average Growth Curve"
+  ) +
+  theme_minimal() +
+  scale_color_manual(
+    name = "Replicate",
+    values = replicate_colors
+  ) +
+  scale_linetype_manual(
+    name = "Average Growth Curve",
+    values = c("Average Growth Curve" = "dashed")  # Assign dashed line to average curve
+  ) +
+  guides(
+    color = guide_legend(order = 1),  # Order replicates first
+    linetype = guide_legend(order = 2)  # Order the average curve after replicates
+  )
+
+```
+
+## WV + M9
+
+```{r fit_wv_m9, echo=FALSE}
+#Fit the model
+fitted_model_4 <- fit_piecewise_growth(
+  data = synthetic_data_4,
+  time_var = "time",
+  od_var = "OD",
+  replicate_var = "Replicate"
+)
+
+summary(fitted_model_4)
+coef(summary(fitted_model_4))
+
+#Prediction
+synthetic_data_4$fitted_by_rep <- predict(fitted_model_4) # Predictions by replicate
+synthetic_data_4$fitted <- predict(fitted_model_4, level = 0)  # Fixed effect predictions
+synthetic_data_4$Replicate <- as.factor(synthetic_data_4$Replicate)
+
+# Plot observed and fitted data
+replicate_colors <- c("red", "blue", "green", "purple", "orange","brown")
+
+ggplot(synthetic_data_4, aes(x = time, y = OD, color = Replicate)) +
+  geom_point(alpha = 0.6) +  # Observed data points
+  geom_line(aes(y = fitted_by_rep, group = Replicate), linewidth = 1) +  # Fitted curves for replicates
+  geom_line(aes(y = fitted, linetype = "Average Growth Curve"), color = "black", linewidth = 1.2) +  # Fixed effects curve
+  labs(
+    title = "Observed Data and Fitted Piecewise Growth Curves WV + M9",
+    x = "time (hours)",
+    y = "Optical Density (OD)",
+    linetype = "Average Growth Curve"
+  ) +
+  theme_minimal() +
+  scale_color_manual(
+    name = "Replicate",
+    values = replicate_colors
+  ) +
+  scale_linetype_manual(
+    name = "Average Growth Curve",
+    values = c("Average Growth Curve" = "dashed")  # Assign dashed line to average curve
+  ) +
+  guides(
+    color = guide_legend(order = 1),  # Order replicates first
+    linetype = guide_legend(order = 2)  # Order the average curve after replicates
+  )
+
+```
+
+## WVE + M9
+
+```{r fit_wve_m9, echo=FALSE}
+#Fit the model
+fitted_model_5 <- fit_piecewise_growth(
+  data = synthetic_data_5,
+  time_var = "time",
+  od_var = "OD",
+  replicate_var = "Replicate"
+)
+
+summary(fitted_model_5)
+coef(summary(fitted_model_5))
+
+#Prediction
+synthetic_data_5$fitted_by_rep <- predict(fitted_model_5) # Predictions by replicate
+synthetic_data_5$fitted <- predict(fitted_model_5, level = 0)  # Fixed effect predictions
+synthetic_data_5$Replicate <- as.factor(synthetic_data_5$Replicate)
+
+# Plot observed and fitted data
+replicate_colors <- c("red", "blue", "green", "purple", "orange","brown")
+
+ggplot(synthetic_data_5, aes(x = time, y = OD, color = Replicate)) +
+  geom_point(alpha = 0.6) +  # Observed data points
+  geom_line(aes(y = fitted_by_rep, group = Replicate), linewidth = 1) +  # Fitted curves for replicates
+  geom_line(aes(y = fitted, linetype = "Average Growth Curve"), color = "black", linewidth = 1.2) +  # Fixed effects curve
+  labs(
+    title = "Observed Data and Fitted Piecewise Growth Curves WVE + M9",
+    x = "time (hours)",
+    y = "Optical Density (OD)",
+    linetype = "Average Growth Curve"
+  ) +
+  theme_minimal() +
+  scale_color_manual(
+    name = "Replicate",
+    values = replicate_colors
+  ) +
+  scale_linetype_manual(
+    name = "Average Growth Curve",
+    values = c("Average Growth Curve" = "dashed")  # Assign dashed line to average curve
+  ) +
+  guides(
+    color = guide_legend(order = 1),  # Order replicates first
+    linetype = guide_legend(order = 2)  # Order the average curve after replicates
+  )
+
+```
+
+## Wild + Fe
+
+```{r fit_w_fe, echo=FALSE}
+#Fit the model
+fitted_model_6 <- fit_piecewise_growth(
+  data = synthetic_data_6,
+  time_var = "time",
+  od_var = "OD",
+  replicate_var = "Replicate"
+)
+
+summary(fitted_model_6)
+coef(summary(fitted_model_6))
+
+#Prediction
+synthetic_data_6$fitted_by_rep <- predict(fitted_model_6) # Predictions by replicate
+synthetic_data_6$fitted <- predict(fitted_model_6, level = 0)  # Fixed effect predictions
+synthetic_data_6$Replicate <- as.factor(synthetic_data_6$Replicate)
+
+# Plot observed and fitted data
+replicate_colors <- c("red", "blue", "green", "purple", "orange","brown")
+
+ggplot(synthetic_data_6, aes(x = time, y = OD, color = Replicate)) +
+  geom_point(alpha = 0.6) +  # Observed data points
+  geom_line(aes(y = fitted_by_rep, group = Replicate), linewidth = 1) +  # Fitted curves for replicates
+  geom_line(aes(y = fitted, linetype = "Average Growth Curve"), color = "black", linewidth = 1.2) +  # Fixed effects curve
+  labs(
+    title = "Observed Data and Fitted Piecewise Growth Curves W + Fe",
+    x = "time (hours)",
+    y = "Optical Density (OD)",
+    linetype = "Average Growth Curve"
+  ) +
+  theme_minimal() +
+  scale_color_manual(
+    name = "Replicate",
+    values = replicate_colors
+  ) +
+  scale_linetype_manual(
+    name = "Average Growth Curve",
+    values = c("Average Growth Curve" = "dashed")  # Assign dashed line to average curve
+  ) +
+  guides(
+    color = guide_legend(order = 1),  # Order replicates first
+    linetype = guide_legend(order = 2)  # Order the average curve after replicates
+  )
+
+```
+
+## WE + Fe
+
+```{r fit_we_fe, echo=FALSE}
+#Fit the model
+fitted_model_7 <- fit_piecewise_growth(
+  data = synthetic_data_7,
+  time_var = "time",
+  od_var = "OD",
+  replicate_var = "Replicate"
+)
+
+summary(fitted_model_7)
+coef(summary(fitted_model_7))
+
+#Prediction
+synthetic_data_7$fitted_by_rep <- predict(fitted_model_7) # Predictions by replicate
+synthetic_data_7$fitted <- predict(fitted_model_7, level = 0)  # Fixed effect predictions
+synthetic_data_7$Replicate <- as.factor(synthetic_data_7$Replicate)
+
+# Plot observed and fitted data
+replicate_colors <- c("red", "blue", "green", "purple", "orange","brown")
+
+ggplot(synthetic_data_7, aes(x = time, y = OD, color = Replicate)) +
+  geom_point(alpha = 0.6) +  # Observed data points
+  geom_line(aes(y = fitted_by_rep, group = Replicate), linewidth = 1) +  # Fitted curves for replicates
+  geom_line(aes(y = fitted, linetype = "Average Growth Curve"), color = "black", linewidth = 1.2) +  # Fixed effects curve
+  labs(
+    title = "Observed Data and Fitted Piecewise Growth Curves WE + Fe",
+    x = "time (hours)",
+    y = "Optical Density (OD)",
+    linetype = "Average Growth Curve"
+  ) +
+  theme_minimal() +
+  scale_color_manual(
+    name = "Replicate",
+    values = replicate_colors
+  ) +
+  scale_linetype_manual(
+    name = "Average Growth Curve",
+    values = c("Average Growth Curve" = "dashed")  # Assign dashed line to average curve
+  ) +
+  guides(
+    color = guide_legend(order = 1),  # Order replicates first
+    linetype = guide_legend(order = 2)  # Order the average curve after replicates
+  )
+
+```
+
+## WH + Fe
+
+```{r fit_wh_fe, echo=FALSE}
+#Fit the model
+fitted_model_8 <- fit_piecewise_growth(
+  data = synthetic_data_8,
+  time_var = "time",
+  od_var = "OD",
+  replicate_var = "Replicate"
+)
+
+summary(fitted_model_8)
+coef(summary(fitted_model_8))
+
+#Prediction
+synthetic_data_8$fitted_by_rep <- predict(fitted_model_8) # Predictions by replicate
+synthetic_data_8$fitted <- predict(fitted_model_8, level = 0)  # Fixed effect predictions
+synthetic_data_8$Replicate <- as.factor(synthetic_data_8$Replicate)
+
+# Plot observed and fitted data
+replicate_colors <- c("red", "blue", "green", "purple", "orange","brown")
+
+ggplot(synthetic_data_8, aes(x = time, y = OD, color = Replicate)) +
+  geom_point(alpha = 0.6) +  # Observed data points
+  geom_line(aes(y = fitted_by_rep, group = Replicate), linewidth = 1) +  # Fitted curves for replicates
+  geom_line(aes(y = fitted, linetype = "Average Growth Curve"), color = "black", linewidth = 1.2) +  # Fixed effects curve
+  labs(
+    title = "Observed Data and Fitted Piecewise Growth Curves WH + Fe",
+    x = "time (hours)",
+    y = "Optical Density (OD)",
+    linetype = "Average Growth Curve"
+  ) +
+  theme_minimal() +
+  scale_color_manual(
+    name = "Replicate",
+    values = replicate_colors
+  ) +
+  scale_linetype_manual(
+    name = "Average Growth Curve",
+    values = c("Average Growth Curve" = "dashed")  # Assign dashed line to average curve
+  ) +
+  guides(
+    color = guide_legend(order = 1),  # Order replicates first
+    linetype = guide_legend(order = 2)  # Order the average curve after replicates
+  )
+
+```
+
+## WV + Fe
+
+```{r fit_wv_fe, echo=FALSE}
+#Fit the model
+fitted_model_9 <- fit_piecewise_growth(
+  data = synthetic_data_9,
+  time_var = "time",
+  od_var = "OD",
+  replicate_var = "Replicate"
+)
+
+summary(fitted_model_9)
+coef(summary(fitted_model_9))
+
+#Prediction
+synthetic_data_9$fitted_by_rep <- predict(fitted_model_9) # Predictions by replicate
+synthetic_data_9$fitted <- predict(fitted_model_9, level = 0)  # Fixed effect predictions
+synthetic_data_9$Replicate <- as.factor(synthetic_data_9$Replicate)
+
+# Plot observed and fitted data
+replicate_colors <- c("red", "blue", "green", "purple", "orange","brown")
+
+ggplot(synthetic_data_9, aes(x = time, y = OD, color = Replicate)) +
+  geom_point(alpha = 0.6) +  # Observed data points
+  geom_line(aes(y = fitted_by_rep, group = Replicate), linewidth = 1) +  # Fitted curves for replicates
+  geom_line(aes(y = fitted, linetype = "Average Growth Curve"), color = "black", linewidth = 1.2) +  # Fixed effects curve
+  labs(
+    title = "Observed Data and Fitted Piecewise Growth Curves WV + Fe",
+    x = "time (hours)",
+    y = "Optical Density (OD)",
+    linetype = "Average Growth Curve"
+  ) +
+  theme_minimal() +
+  scale_color_manual(
+    name = "Replicate",
+    values = replicate_colors
+  ) +
+  scale_linetype_manual(
+    name = "Average Growth Curve",
+    values = c("Average Growth Curve" = "dashed")  # Assign dashed line to average curve
+  ) +
+  guides(
+    color = guide_legend(order = 1),  # Order replicates first
+    linetype = guide_legend(order = 2)  # Order the average curve after replicates
+  )
+
+```
+
+## Wild + Virulence + ESBL + Fe
+
+```{r fit_wve_fe, echo=FALSE}
+#Fit the model
+fitted_model_10 <- fit_piecewise_growth(
+  data = synthetic_data_10,
+  time_var = "time",
+  od_var = "OD",
+  replicate_var = "Replicate"
+)
+
+summary(fitted_model_10)
+coef(summary(fitted_model_10))
+
+#Prediction
+synthetic_data_10$fitted_by_rep <- predict(fitted_model_10) # Predictions by replicate
+synthetic_data_10$fitted <- predict(fitted_model_10, level = 0)  # Fixed effect predictions
+synthetic_data_10$Replicate <- as.factor(synthetic_data_10$Replicate)
+
+# Plot observed and fitted data
+replicate_colors <- c("red", "blue", "green", "purple", "orange","brown")
+
+ggplot(synthetic_data_10, aes(x = time, y = OD, color = Replicate)) +
+  geom_point(alpha = 0.6) +  # Observed data points
+  geom_line(aes(y = fitted_by_rep, group = Replicate), linewidth = 1) +  # Fitted curves for replicates
+  geom_line(aes(y = fitted, linetype = "Average Growth Curve"), color = "black", linewidth = 1.2) +  # Fixed effects curve
+  labs(
+    title = "Observed Data and Fitted Piecewise Growth Curves WVE + Fe",
+    x = "time (hours)",
+    y = "Optical Density (OD)",
+    linetype = "Average Growth Curve"
+  ) +
+  theme_minimal() +
+  scale_color_manual(
+    name = "Replicate",
+    values = replicate_colors
+  ) +
+  scale_linetype_manual(
+    name = "Average Growth Curve",
+    values = c("Average Growth Curve" = "dashed")  # Assign dashed line to average curve
+  ) +
+  guides(
+    color = guide_legend(order = 1),  # Order replicates first
+    linetype = guide_legend(order = 2)  # Order the average curve after replicates
+  )
+
+```
+
